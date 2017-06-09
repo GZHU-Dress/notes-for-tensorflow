@@ -3,9 +3,9 @@
 # !/usr/bin/env python
 
 
-from tensorflow.examples.tutorials.mnist import input_data
-import tensorflow as tf
 import os
+import tensorflow as tf
+from tensorflow.examples.tutorials.mnist import input_data
 
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
