@@ -35,7 +35,6 @@ def loss(logits, labels):
 
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-# 因为服务器是32核，64线程的，如果不够可以到 cifar10_input.py 文件中修改
 max_steps = 3000  # 训练轮数
 batch_size = 128
 data_dir = '/tmp/cifar10_data/cifar-10-batches-bin'  # 指定默认下载路径
