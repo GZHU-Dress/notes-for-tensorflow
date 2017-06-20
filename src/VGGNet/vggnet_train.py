@@ -3,10 +3,11 @@
 # !/usr/bin/env python
 
 
+from datetime import datetime
+import os
 import time
 import math
 import tensorflow as tf
-from datetime import datetime
 
 
 def conv_op(input_op, name, kh, kw, n_out, dh, dw, p):
@@ -106,7 +107,7 @@ def inference_op(input_op, keep_prob):
     # 第五段
     conv5_1 = conv_op(pool4, name='conv5_1', kh=3, kw=3,
                       n_out=512, dh=1, dw=1, p=p)
-    conv5_2 = conv_op(conv4_1, name='conv5_2', kh=3, kw=3,
+    conv5_2 = conv_op(conv5_1, name='conv5_2', kh=3, kw=3,
                       n_out=512, dh=1, dw=1, p=p)
     conv5_3 = conv_op(conv5_2, name='conv5_3', kh=3, kw=3,
                       n_out=512, dh=1, dw=1, p=p)
@@ -131,3 +132,53 @@ def inference_op(input_op, keep_prob):
     softmax = tf.nn.softmax(fc8)
     predictions = tf.argmax(softmax, 1)
     return predictions, softmax, fc8, p
+
+
+def time_tf_run(session, target, feed, info_string):
+    """评测函数：引入 feed_dict，方便后面传入 keep_prob 来控制 Dropout 层的保留比率."""
+    num_steps_burn_in = 10
+    total_duration = 0.0
+    total_duration_squared = 0.0
+    for i in range(num_batches + num_steps_burn_in):
+        start_time = time.time()
+        _ = session.run(target, feed_dict=feed)
+        duration = time.time() - start_time
+        if i >= num_steps_burn_in:
+            if not i % 10:
+                print('%s: step %d, duration = %.3f' %
+                      (datetime.now(), i - num_steps_burn_in, duration))
+            total_duration += duration
+            total_duration_squared += duration * duration
+    mn = total_duration / num_batches
+    vr = total_duration_squared / num_batches - mn * mn
+    sd = math.sqrt(vr)
+    print('%s: %s across %d steps, %.3f +/- %.3f sec / batch' %
+          (datetime.now(), info_string, num_batches, mn, sd))
+
+
+def run_benchmark():
+    """定义评测的主函数，目标依然是评测 forward 和 backward 的运算性能."""
+    with tf.Graph().as_default():
+        image_size = 224  # 生成尺寸为 224 x 224 的随机图片
+        images = tf.Variable(tf.random_normal([batch_size,
+                                               image_size,
+                                               image_size, 3],
+                                              dtype=tf.float32,
+                                              stddev=1e-1))
+        # 标准差 0.1 的正态分布的随机数
+        keep_prob = tf.placeholder(tf.float32)
+        predictions, softmax, fc8, p = inference_op(images, keep_prob)
+        # 创建 Session 并初始化全局参数
+        init = tf.global_variables_initializer()
+        sess = tf.Session()
+        sess.run(init)
+        time_tf_run(sess, predictions, {keep_prob: 1.0}, "Forward")
+        objective = tf.nn.l2_loss(fc8)
+        grad = tf.gradients(objective, p)
+        time_tf_run(sess, grad, {keep_prob: 0.5}, "Forward-backward")
+
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+batch_size = 32  # 如果设置太大的话 GPU 显存可能不够用
+num_batches = 100
+run_benchmark()
